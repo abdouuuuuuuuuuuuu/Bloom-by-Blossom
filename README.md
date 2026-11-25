@@ -1,4 +1,13 @@
-# Bloom 🌸
+# Bloom by Blossom 🌸
+
+Two apps for the Blossom flower shop, on the same Supabase database and accounts as Blossom POS:
+
+| Folder | App | Where it runs |
+|---|---|---|
+| `/` (this folder) | **Bloom**: owner analytics (sales, profit, customers, stock) | Windows desktop app |
+| [`mobile/`](mobile/) | **Blossom Mobile**: the order workflow on the phone | Website on Netlify, installable on phones |
+
+## Bloom
 
 The owner's analytics app for Blossom: sales, profit, products, customers,
 money, deliveries, stock and waste. Every number is clickable and explains
