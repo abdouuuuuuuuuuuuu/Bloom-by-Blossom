@@ -7,7 +7,7 @@ const SOURCES = {
   orders: { table: 'orders', order: 'created_at', filter: (q) => q.is('deleted_at', null),
     columns: 'id,order_number,created_at,status,order_type,payment_method,payment_status,client_source,client_name,client_phone,customer_id,total_amount,amount_paid,amount_due,price_adjustment,delivery_method,delivery_date,delivery_time,delivery_wilaya,delivery_city,original_delivery_date,delay_reason,delay_history,delivered_at,created_by,cashier_id,voided_at,void_reason,notes,deleted_at' },
   items: { table: 'order_items', order: 'id', columns: 'id,order_id,product_id,product_name,product_image,quantity,unit_price,total_price,category,flower_type,color' },
-  products: { table: 'products', order: 'product_id', columns: 'product_id,item_name,category,flower_type,color,retail_price,stock_level,low_stock_threshold,supplier_id,is_active,image_url' },
+  products: { table: 'products', order: 'product_id', columns: 'product_id,item_name,category,flower_type,color,retail_price,wholesale_cost,stock_level,low_stock_threshold,supplier_id,is_active,image_url' },
   purchases: { table: 'supplier_transactions', order: 'transaction_id', filter: (q) => q.is('voided_at', null), columns: 'transaction_id,supplier_id,product_id,quantity,unit_cost,total_cost,amount_paid,amount_due,payment_status,transaction_date,transaction_type,received_at,created_at,notes' },
   // Every till line: openings, sales paid in, cash-outs, closings with the counted pockets.
   cash: { table: 'cash_register', order: 'id', columns: '*' },

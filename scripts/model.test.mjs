@@ -278,3 +278,24 @@ test('stock moves show before/after, who, and waste', () => {
   assert.equal(w.change, -5)
   assert.equal(w.who, 'Sara')
 })
+
+// ── Rules (src/model/rules.js mirrors supabase/shop-rulebook.sql) ──
+import { tillKind, isTillCost } from '../src/model/rules.js'
+
+test('banking, refunds and corrections are never running costs', () => {
+  const out = (category, description = '') => ({ transaction_type: 'cash_out', category, description })
+  assert.equal(tillKind(out('Banked overnight', 'Banked overnight')), 'banked')
+  assert.equal(isTillCost(out('Banked overnight', 'Banked overnight')), false)
+  assert.equal(isTillCost(out('Refund', 'Refund ORDER #9')), false)
+  assert.equal(isTillCost(out('Other', 'Refund for order 4')), false)
+  assert.equal(isTillCost(out('Archived order reversal')), false)
+  assert.equal(isTillCost(out('Adjustment')), false)
+  assert.equal(isTillCost(out('Transport', 'Taxi')), true)
+  assert.equal(isTillCost(out('Salary', 'Walid')), true)
+  assert.equal(tillKind({ transaction_type: 'cash_in', category: 'Quick sale' }), 'sale_payment')
+  // The month in tillRaw banked 6 000: it must not appear in the running costs.
+  const ds = buildDataset(tillRaw)
+  const bo = buildBackOffice(tillRaw, ds)
+  const nov = makePeriod('month', '2026-11')
+  assert.equal(accounts(ds, bo, select(ds, nov), nov).tillCosts, 400 + 10000)
+})

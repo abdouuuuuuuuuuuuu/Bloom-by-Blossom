@@ -4,6 +4,7 @@
 import { inPeriod } from './period.js'
 import { dayKey } from '../lib/time.js'
 import { PAY_KINDS, METHOD_LABEL } from './backoffice.js'
+import { tillKind, TILL_KIND_LABEL } from './rules.js'
 
 const num = (v) => Number(v) || 0
 const sum = (list, f) => list.reduce((s, x) => s + (f(x) || 0), 0)
@@ -18,20 +19,8 @@ export const SOURCES = {
   staff: { label: 'Staff pay', tone: 'plum' },
 }
 
-/** What kind of till line this is, in shop words. */
-function tillType(c) {
-  const cat = String(c.category || '').toLowerCase()
-  const desc = String(c.description || '').toLowerCase()
-  if (c.transaction_type === 'cash_in') {
-    if (c.order_id || /order|sale|payment/.test(cat + desc)) return 'Sale payment'
-    return 'Cash in'
-  }
-  if (/banked/.test(cat + desc)) return 'Banked overnight'
-  if (/refund/.test(cat + desc)) return 'Refund'
-  if (/archived order reversal|reversal/.test(cat)) return 'Order reversal'
-  if (/adjust/.test(cat)) return 'Correction'
-  return 'Cash out'
-}
+/** What kind of till line this is, in shop words (rules.js → shop_till_kind). */
+const tillType = (c) => TILL_KIND_LABEL[tillKind(c)]
 
 /**
  * Every money movement in the period, newest first.

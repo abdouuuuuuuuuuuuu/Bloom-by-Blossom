@@ -4,14 +4,10 @@
 
 import { dayKey, shopHour, weekdayOf } from '../lib/time.js'
 import { tidyName } from '../lib/labels.js'
+import { isCountedSale, isTillCost, isWasteRemoval } from './rules.js'
 
-/** An order counts towards sales unless it was cancelled, voided, refunded or archived. */
-export function isCounted(order) {
-  return !order.deleted_at
-    && !order.voided_at
-    && order.status !== 'cancelled'
-    && order.payment_status !== 'refunded'
-}
+/** An order counts towards sales unless it was deleted, voided, cancelled or refunded (rules.js). */
+export const isCounted = isCountedSale
 
 const WALK_IN = /^walk[\s-]?in/i
 const digits = (s) => String(s || '').replace(/\D/g, '')
@@ -28,9 +24,6 @@ export function customerKey(order) {
 
 /** Stock counts at or above this are placeholders ("unlimited"), not real counts. */
 export const UNTRACKED_STOCK = 5000
-
-/** Cash-register categories that are not running costs. */
-const NOT_EXPENSE = new Set(['refund', 'adjustment', 'archived order reversal'])
 
 const num = (v) => Number(v) || 0
 
@@ -70,6 +63,7 @@ export function buildDataset(raw, prefs = {}) {
       purchases: [],
       cost: null,
       costSource: 'none',
+      wholesale: num(p.wholesale_cost),
     })
   }
   const productOf = (id, fallbackName) => {
@@ -124,6 +118,10 @@ export function buildDataset(raw, prefs = {}) {
     const product = list[0].product
     product.purchases = list
     if (qty) { product.cost = good.reduce((s, t) => s + t.qty * t.unitCost, 0) / qty; product.costSource = 'purchases' }
+  }
+  // No usable purchases: fall back to the wholesale cost set on the product, if any (shop_product_cost).
+  for (const product of products.values()) {
+    if (product.cost == null && product.wholesale > 0) { product.cost = product.wholesale; product.costSource = 'manual' }
   }
   for (const [id, value] of Object.entries(overrides)) {
     const product = products.get(Number(id)) || products.get(id)
@@ -247,7 +245,8 @@ export function buildDataset(raw, prefs = {}) {
       return {
         id: c.id, day, month: day.slice(0, 7), amount: num(c.amount), category,
         description: (c.description || '').trim(), payment: c.payment_method || 'cash',
-        isExpense: !NOT_EXPENSE.has(category.toLowerCase()) && !/^refund/i.test(c.description || ''),
+        // Not a cost: banking, refunds, corrections, order reversals (rules.js → shop_till_kind).
+        isExpense: isTillCost(c),
       }
     })
 
@@ -255,7 +254,7 @@ export function buildDataset(raw, prefs = {}) {
   const waste = [
     ...(raw.waste || []).map((w) => ({ id: `w${w.id}`, productId: w.product_id, qty: num(w.quantity), reason: w.reason || 'Waste', day: w.waste_date || '' })),
     ...(raw.adjustments || [])
-      .filter((a) => a.adjustment_type === 'removal' && !/^order\s*#/i.test(a.reason || ''))
+      .filter(isWasteRemoval)
       .map((a) => ({ id: `a${a.id}`, productId: a.product_id, qty: Math.abs(num(a.quantity)), reason: a.reason || 'Removed', day: dayKey(a.created_at) })),
   ].map((w) => {
     const product = productOf(w.productId)

@@ -1,13 +1,13 @@
 {
   "name": "bloom",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Bloom - monthly sales activity for Blossom",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test scripts/model.test.mjs",
+    "test": "node --test \"scripts/*.test.mjs\"",
     "desktop": "vite build && electron .",
     "dist:win": "vite build && electron-builder --win --publish never"
   },
