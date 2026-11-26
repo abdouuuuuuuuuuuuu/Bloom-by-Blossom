@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import {
   LayoutDashboard, TrendingUp, Flower2, Users, Wallet, Truck, Boxes, ReceiptText, Settings, LogOut,
-  RefreshCw, Printer, ShoppingBasket, Calculator, IdCard, ChevronLeft, ChevronRight, FilterX, AlertTriangle,
+  RefreshCw, Printer, ShoppingBasket, Calculator, IdCard, BookOpenText, ChevronLeft, ChevronRight, FilterX, AlertTriangle,
 } from 'lucide-react'
 import { useApp } from '../state/AppState.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -19,6 +19,7 @@ export const PAGES = [
   { id: 'money', label: 'Money', icon: Wallet },
   { id: 'operations', label: 'Operations', icon: Truck },
   { id: 'orders', label: 'Orders', icon: ReceiptText },
+  { id: 'journal', label: 'Journal', icon: BookOpenText, group: 'office' },
   { id: 'purchasing', label: 'Purchasing', icon: ShoppingBasket, group: 'office' },
   { id: 'stock', label: 'Inventory', icon: Boxes, group: 'office' },
   { id: 'accounting', label: 'Accounting', icon: Calculator, group: 'office' },

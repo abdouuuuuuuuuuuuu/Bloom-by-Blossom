@@ -9,12 +9,14 @@ const SOURCES = {
   items: { table: 'order_items', order: 'id', columns: 'id,order_id,product_id,product_name,product_image,quantity,unit_price,total_price,category,flower_type,color' },
   products: { table: 'products', order: 'product_id', columns: 'product_id,item_name,category,flower_type,color,retail_price,stock_level,low_stock_threshold,supplier_id,is_active,image_url' },
   purchases: { table: 'supplier_transactions', order: 'transaction_id', filter: (q) => q.is('voided_at', null), columns: 'transaction_id,supplier_id,product_id,quantity,unit_cost,total_cost,amount_paid,amount_due,payment_status,transaction_date,transaction_type,received_at,created_at,notes' },
-  cash: { table: 'cash_register', order: 'id', filter: (q) => q.eq('transaction_type', 'cash_out'), columns: 'id,transaction_type,amount,description,category,register_date,payment_method,created_at' },
+  // Every till line: openings, sales paid in, cash-outs, closings with the counted pockets.
+  cash: { table: 'cash_register', order: 'id', columns: '*' },
   suppliers: { table: 'suppliers', order: 'supplier_id', columns: 'supplier_id,company_name,contact_person,phone,email,address,notes,supplier_status' },
   supplierPayments: { table: 'supplier_payments', order: 'payment_id', columns: 'payment_id,supplier_id,amount,payment_method,notes,transaction_id,paid_at,created_at' },
   supplierBalances: { table: 'supplier_balances', order: 'supplier_id', columns: '*' },
-  adjustments: { table: 'stock_adjustments', order: 'id', filter: (q) => q.eq('adjustment_type', 'removal'), columns: 'id,product_id,adjustment_type,quantity,reason,created_at' },
-  waste: { table: 'flower_waste', order: 'id', columns: 'id,product_id,quantity,reason,waste_date' },
+  // Every stock movement (deliveries, counts, removals, sales…), with before/after and who.
+  adjustments: { table: 'stock_adjustments', order: 'id', columns: '*' },
+  waste: { table: 'flower_waste', order: 'id', columns: '*' },
   settings: { table: 'settings', order: 'id', columns: 'daily_target,shop_name' },
   profiles: { table: 'profiles', order: 'id', columns: 'id,full_name,username,role,is_active' },
   // Bloom's own back-office tables (supabase/bloom-back-office.sql).
@@ -66,6 +68,18 @@ export async function loadAll() {
     }
   }))
   return { raw: Object.fromEntries(entries), restricted, setupNeeded }
+}
+
+/**
+ * Blossom's activity log: every action anyone took, in plain words (owner only).
+ * Loaded on demand for one period because it can be long.
+ */
+export async function loadActivity(start, end) {
+  const from = new Date(`${start}T00:00:00+01:00`).toISOString()
+  const to = new Date(new Date(`${end}T00:00:00+01:00`).getTime() + 86400000).toISOString()
+  const { data, error } = await supabase.rpc('blossom_activity_feed', { p_from: from, p_to: to, p_actor: null, p_kind: null, p_limit: 5000 })
+  if (error) throw new Error(/permission|owner|42501/i.test(error.message || '') ? 'Only owner accounts can see the activity log.' : error.message)
+  return data || []
 }
 
 /** Blossom lets staff sign in with a username; resolve it to the account email. */

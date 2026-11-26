@@ -137,14 +137,23 @@ function WasteDialog({ data, onClose }) {
   const [qty, setQty] = useState('')
   const [reason, setReason] = useState('Wilted')
   const p = bo.productById.get(Number(productId))
+  // The till's waste log only takes Flowers; anything else is removed from stock with the same reason.
+  const isFlower = String(p?.category || '').trim().toLowerCase() === 'flowers'
+  const tooMany = p && p.stock != null && Number(qty) > p.stock
   return (
-    <Dialog title="Log waste" subtitle="Takes the stems out of stock and counts their cost as a loss" tone="rose" submitLabel="Log waste" disabled={!p || !(Number(qty) > 0)} onClose={onClose}
-      onSubmit={async () => { await A.recordWaste(p.id, qty, reason); onClose(); await saved(`${num(qty)} × ${p.name} logged as waste`) }}>
+    <Dialog title="Log waste" subtitle="Takes the stems out of stock and counts their cost as a loss" tone="rose" submitLabel="Log waste" disabled={!p || !(Number(qty) > 0) || tooMany} onClose={onClose}
+      onSubmit={async () => {
+        if (isFlower) await A.recordWaste(p.id, qty, reason)
+        else await A.removeStock(p.id, qty, `Waste: ${reason}`)
+        onClose(); await saved(`${num(qty)} × ${p.name} ${isFlower ? 'logged as waste' : 'removed from stock'}`)
+      }}>
       <Field label="Product"><Select value={productId} onChange={(e) => setProductId(e.target.value)} placeholder="Choose" options={productOptions(bo)} /></Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="How many" hint={p?.stock != null ? `${num(p.stock)} in stock` : ''}><Input inputMode="numeric" value={qty} onChange={(e) => setQty(digits(e.target.value))} /></Field>
         <Field label="Why"><Select value={reason} onChange={(e) => setReason(e.target.value)} options={WASTE_REASONS.map((x) => [x, x])} /></Field>
       </div>
+      {tooMany && <p className="text-sm text-rose">Only {num(p.stock)} in stock. Count the stock first if that number is wrong.</p>}
+      {p && !isFlower && <p className="text-xs text-muted">Not a flower: it is removed from stock (the till keeps its waste log for flowers only).</p>}
       {p?.avgCost != null && Number(qty) > 0 && <p className="text-sm text-rose">Loss of about {da(Number(qty) * p.avgCost)}</p>}
     </Dialog>
   )

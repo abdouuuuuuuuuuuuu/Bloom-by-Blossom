@@ -109,7 +109,7 @@ export function AppStateProvider({ children }) {
   const closeAll = useCallback(() => setDrawers([]), [])
 
   const value = {
-    ds, bo, sel, prevSel, setupNeeded, toast, notify, saved, period, prev, setPeriod, filters, setFilter, patchFilters, clearFilters: () => setFilters({}),
+    ds, bo, rawData: raw, sel, prevSel, setupNeeded, toast, notify, saved, period, prev, setPeriod, filters, setFilter, patchFilters, clearFilters: () => setFilters({}),
     page, go, drawers, open, back, closeAll,
     prefs, setPrefs, dailyTarget, restricted, status, refresh,
   }

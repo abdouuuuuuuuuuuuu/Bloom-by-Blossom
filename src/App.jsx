@@ -18,6 +18,7 @@ const PAGES = {
   operations: lazy(() => import('./pages/Operations.jsx')),
   stock: lazy(() => import('./pages/Stock.jsx')),
   orders: lazy(() => import('./pages/Orders.jsx')),
+  journal: lazy(() => import('./pages/Journal.jsx')),
   purchasing: lazy(() => import('./pages/Purchasing.jsx')),
   accounting: lazy(() => import('./pages/Accounting.jsx')),
   staff: lazy(() => import('./pages/Staff.jsx')),

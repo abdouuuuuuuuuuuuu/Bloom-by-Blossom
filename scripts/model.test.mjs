@@ -216,3 +216,65 @@ test('Blossom logins not on the payroll are offered', () => {
   const bo = buildBackOffice(r, buildDataset(r))
   assert.deepEqual(bo.team.map((t) => [t.name, t.onPayroll]), [['Owner', true], ['Sara', false]])
 })
+
+// ── Journal ─────────────────────────────────────────────────
+import { moneyLines, totals, tillDays, stockMoves } from '../src/model/journal.js'
+
+const tillRaw = {
+  ...officeRaw,
+  profiles: [{ id: 'u1', full_name: 'Owner', role: 'owner' }, { id: 'u2', full_name: 'Sara', role: 'cashier' }],
+  cash: [
+    { id: 'c1', transaction_type: 'opening', amount: 5000, register_date: '2026-11-20', created_at: '2026-11-20T08:00:00Z', created_by: 'u1' },
+    { id: 'c2', transaction_type: 'cash_in', amount: 3000, payment_method: 'cash', category: 'Order payment', order_id: 'c', register_date: '2026-11-20', created_at: '2026-11-20T10:00:00Z', created_by: 'u2' },
+    { id: 'c3', transaction_type: 'cash_in', amount: 2000, payment_method: 'baridimob', register_date: '2026-11-20', created_at: '2026-11-20T11:00:00Z', created_by: 'u2' },
+    { id: 'c4', transaction_type: 'cash_out', amount: 400, category: 'Transport', description: 'Taxi', payment_method: 'cash', register_date: '2026-11-20', created_at: '2026-11-20T12:00:00Z', created_by: 'u2' },
+    { id: 'c5', transaction_type: 'cash_out', amount: 6000, category: 'Banked overnight', description: 'Banked overnight', payment_method: 'cash', register_date: '2026-11-20', created_at: '2026-11-20T19:00:00Z', created_by: 'u1' },
+    { id: 'c6', transaction_type: 'closing', amount: 3500, counted_cash: 7500, counted_baridimob: 2000, counted_usd: 0, banked_overnight: 6000, register_date: '2026-11-20', created_at: '2026-11-20T19:01:00Z', created_by: 'u1' },
+    { id: 'c7', transaction_type: 'cash_out', amount: 10000, category: 'Salary', description: 'Walid salary', register_date: '2026-11-20', created_at: '2026-11-20T18:00:00Z', created_by: 'u1' },
+  ],
+  adjustments: [{ id: 1, product_id: 1, adjustment_type: 'received', quantity: 100, previous_stock: 4, new_stock: 104, reason: 'Supplier delivery', created_at: '2026-11-20T09:00:00Z', created_by: 'u1' }],
+  waste: [{ id: 9, product_id: 1, quantity: 5, reason: 'Wilted', waste_date: '2026-11-21', created_by: 'u2' }],
+}
+
+test('till day: expected, counted and difference, with running balance', () => {
+  const ds = buildDataset(tillRaw)
+  const [d] = tillDays(tillRaw, ds, makePeriod('month', '2026-11'))
+  assert.equal(d.opening, 5000)
+  assert.equal(d.in, 5000)
+  assert.equal(d.out, 16400)
+  assert.equal(d.expected, -6400)           // 5000 + 5000 − 16 400
+  assert.equal(d.closing, 3500)
+  assert.equal(d.difference, 9900)          // the 10 000 salary line makes the books 9 900 off
+  assert.equal(d.banked, 6000)
+  assert.equal(d.counted.cash, 7500)
+  assert.equal(d.closedBy, 'Owner')
+  assert.equal(d.movements.find((m) => m.key === 'c4').who, 'Sara')
+  assert.equal(d.movements.find((m) => m.key === 'c4').balance, 9600)
+})
+
+test('every money line once, with who and the order number', () => {
+  const ds = buildDataset(tillRaw)
+  const bo = buildBackOffice(tillRaw, ds)
+  const lines = moneyLines(tillRaw, ds, bo, makePeriod('month', '2026-11'))
+  const sale = lines.find((l) => l.key === 't' + 'c2')
+  assert.equal(sale.type, 'Sale payment')
+  assert.equal(sale.orderNumber, 'c')
+  assert.equal(sale.who, 'Sara')
+  assert.equal(lines.find((l) => l.key === 'tc5').type, 'Banked overnight')
+  assert.ok(!lines.some((l) => l.key === 'tc1' || l.key === 'tc6'))          // opening/closing are not money movements
+  const tillSalary = lines.find((l) => l.key === 's4')                         // staff salary taken from the till
+  assert.equal(tillSalary.counted, false)
+  const t = totals(lines)
+  assert.equal(t.out, 400 + 6000 + 10000 + 15000 + 20000 + 5000 + 2000)       // till outs + supplier + office + staff not from till
+})
+
+test('stock moves show before/after, who, and waste', () => {
+  const ds = buildDataset(tillRaw)
+  const moves = stockMoves(tillRaw, ds, makePeriod('month', '2026-11'))
+  const del = moves.find((m) => m.key === 'a1')
+  assert.equal(del.change, 100)
+  assert.equal(del.who, 'Owner')
+  const w = moves.find((m) => m.key === 'w9')
+  assert.equal(w.change, -5)
+  assert.equal(w.who, 'Sara')
+})
