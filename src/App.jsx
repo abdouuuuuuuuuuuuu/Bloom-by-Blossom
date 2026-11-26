@@ -7,6 +7,7 @@ import { DrawerHost } from './components/Drawers.jsx'
 import { Skeleton } from './components/ui.jsx'
 import { AppStateProvider, useApp } from './state/AppState.jsx'
 import Overview from './pages/Overview.jsx'
+import { Toast } from './components/Toast.jsx'
 
 const PAGES = {
   overview: Overview,
@@ -17,6 +18,9 @@ const PAGES = {
   operations: lazy(() => import('./pages/Operations.jsx')),
   stock: lazy(() => import('./pages/Stock.jsx')),
   orders: lazy(() => import('./pages/Orders.jsx')),
+  purchasing: lazy(() => import('./pages/Purchasing.jsx')),
+  accounting: lazy(() => import('./pages/Accounting.jsx')),
+  staff: lazy(() => import('./pages/Staff.jsx')),
   settings: lazy(() => import('./pages/Settings.jsx')),
 }
 
@@ -29,6 +33,7 @@ export default function App() {
     <AppStateProvider>
       <Shell><Page /></Shell>
       <DrawerHost />
+      <Toast />
     </AppStateProvider>
   )
 }

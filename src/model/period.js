@@ -1,12 +1,32 @@
 // A period is an inclusive day range plus how to name and compare it.
 import {
-  addDays, currentMonth, daysBetween, dayLabel, monthEnd, monthLabel, monthStart, shiftMonth, today,
+  addDays, currentMonth, daysBetween, dayLabel, monthEnd, monthLabel, monthStart, shiftMonth, today, weekdayOf,
 } from '../lib/time.js'
 
-/** kind: 'month' | 'year' | 'last30' | 'last90' | 'range' */
+/**
+ * The shop's week runs Saturday to Friday: the books are closed every Friday.
+ * Returns the Friday that ends the week containing `day`.
+ */
+export function weekEnding(day) {
+  // weekdayOf: 0 = Monday … 4 = Friday … 6 = Sunday
+  const wd = weekdayOf(day)
+  return addDays(day, (4 - wd + 7) % 7)
+}
+
+/** kind: 'week' | 'month' | 'year' | 'last30' | 'last90' | 'range' */
 export function makePeriod(kind, value, now = new Date()) {
   const t = today(now)
   switch (kind) {
+    case 'week': {
+      // value = the Friday that closes the week.
+      const end = value || weekEnding(t)
+      const start = addDays(end, -6)
+      return {
+        kind, value: end, start, end,
+        label: `Week to Fri ${dayLabel(end, { day: 'numeric', month: 'short', year: 'numeric' })}`,
+        short: `week to ${dayLabel(end, { day: 'numeric', month: 'short' })}`,
+      }
+    }
     case 'month': {
       const m = value || currentMonth(now)
       return { kind, value: m, start: monthStart(m), end: monthEnd(m), label: monthLabel(m), short: monthLabel(m, 'short') }
@@ -30,6 +50,7 @@ export function makePeriod(kind, value, now = new Date()) {
 
 /** The period just before, of the same shape (previous month, previous year, previous N days). */
 export function previousPeriod(p) {
+  if (p.kind === 'week') return makePeriod('week', addDays(p.value, -7))
   if (p.kind === 'month') return makePeriod('month', shiftMonth(p.value, -1))
   if (p.kind === 'year') return makePeriod('year', String(Number(p.value) - 1))
   const length = daysBetween(p.start, p.end) + 1

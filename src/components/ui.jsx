@@ -62,9 +62,10 @@ const TONES = {
 }
 
 export function Stat({ icon: Icon, label, value, info, children, tone = 'plum', onClick }) {
-  const Tag = onClick ? 'button' : 'div'
+  // A div with button behaviour: the ⓘ inside is itself a button, and buttons cannot nest.
+  const clickable = onClick ? { role: 'button', tabIndex: 0, onClick, onKeyDown: (e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick() } } } : {}
   return (
-    <Tag onClick={onClick} className={`card rise flex flex-col gap-2.5 p-4 text-left ${onClick ? 'transition hover:-translate-y-0.5 hover:shadow-lg' : ''}`}>
+    <div {...clickable} className={`card rise flex flex-col gap-2.5 p-4 text-left ${onClick ? 'cursor-pointer transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-plum' : ''}`}>
       <div className="flex items-center gap-2">
         {Icon && <span className={`grid h-7 w-7 place-items-center rounded-lg ${TONES[tone]}`}><Icon className="h-3.5 w-3.5" aria-hidden="true" /></span>}
         <span className="text-[13px] font-medium text-muted">{label}</span>
@@ -72,7 +73,7 @@ export function Stat({ icon: Icon, label, value, info, children, tone = 'plum', 
       </div>
       <p className="tabular font-display text-[26px] leading-none tracking-tight text-ink">{value}</p>
       <div className="min-h-5 text-xs text-muted">{children}</div>
-    </Tag>
+    </div>
   )
 }
 

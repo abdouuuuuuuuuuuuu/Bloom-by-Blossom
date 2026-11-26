@@ -1,14 +1,14 @@
 import { useEffect } from 'react'
 import {
   LayoutDashboard, TrendingUp, Flower2, Users, Wallet, Truck, Boxes, ReceiptText, Settings, LogOut,
-  RefreshCw, Printer, ChevronLeft, ChevronRight, FilterX, AlertTriangle,
+  RefreshCw, Printer, ShoppingBasket, Calculator, IdCard, ChevronLeft, ChevronRight, FilterX, AlertTriangle,
 } from 'lucide-react'
 import { useApp } from '../state/AppState.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { BloomMark } from './BloomMark.jsx'
 import { Chip, Segmented } from './ui.jsx'
 import { filterChips } from '../model/filters.js'
-import { makePeriod } from '../model/period.js'
+import { makePeriod, weekEnding } from '../model/period.js'
 import { currentMonth, isDayKey, isMonthKey, shiftMonth, today, addDays } from '../lib/time.js'
 
 export const PAGES = [
@@ -18,8 +18,11 @@ export const PAGES = [
   { id: 'customers', label: 'Customers', icon: Users },
   { id: 'money', label: 'Money', icon: Wallet },
   { id: 'operations', label: 'Operations', icon: Truck },
-  { id: 'stock', label: 'Stock & waste', icon: Boxes },
   { id: 'orders', label: 'Orders', icon: ReceiptText },
+  { id: 'purchasing', label: 'Purchasing', icon: ShoppingBasket, group: 'office' },
+  { id: 'stock', label: 'Inventory', icon: Boxes, group: 'office' },
+  { id: 'accounting', label: 'Accounting', icon: Calculator, group: 'office' },
+  { id: 'staff', label: 'Staff & payroll', icon: IdCard, group: 'office' },
 ]
 
 const isDesktop = typeof window !== 'undefined' && !!window.bloomDesktop
@@ -36,11 +39,14 @@ export function Shell({ children }) {
           <span className="font-display text-xl text-plum">Bloom</span>
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2" aria-label="Pages">
-          {PAGES.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => go(id)} aria-current={page === id ? 'page' : undefined}
+          {PAGES.map(({ id, label, icon: Icon, group }, i) => (
+            <div key={id}>
+            {(i === 0 || group !== PAGES[i - 1].group) && <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted/80 first:pt-1">{group === 'office' ? 'Back office' : 'Reports'}</p>}
+            <button onClick={() => go(id)} aria-current={page === id ? 'page' : undefined}
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${page === id ? 'bg-plum text-white shadow-md shadow-plum/20' : 'text-muted hover:bg-plum-soft/60 hover:text-ink'}`}>
               <Icon className="h-4 w-4" aria-hidden="true" /> {label}
             </button>
+            </div>
           ))}
         </nav>
         <div className="space-y-0.5 border-t border-line/70 px-3 py-3">
@@ -116,7 +122,10 @@ function PeriodPicker() {
     const onKey = (e) => {
       if (!e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
       const step = e.key === 'ArrowLeft' ? -1 : 1
-      if (period.kind === 'month') {
+      if (period.kind === 'week') {
+        const next = addDays(period.value, step * 7)
+        if (next <= weekEnding(today())) setPeriod(makePeriod('week', next))
+      } else if (period.kind === 'month') {
         const next = shiftMonth(period.value, step)
         if (next <= thisMonth) setPeriod(makePeriod('month', next))
       } else if (period.kind === 'year') {
@@ -130,7 +139,8 @@ function PeriodPicker() {
 
   const kind = period.kind
   const setKind = (k) => {
-    if (k === 'month') setPeriod(makePeriod('month', thisMonth))
+    if (k === 'week') setPeriod(makePeriod('week'))
+    else if (k === 'month') setPeriod(makePeriod('month', thisMonth))
     else if (k === 'year') setPeriod(makePeriod('year', thisYear))
     else if (k === 'range') setPeriod(makePeriod('range', [addDays(today(), -13), today()]))
     else setPeriod(makePeriod(k))
@@ -149,7 +159,13 @@ function PeriodPicker() {
   return (
     <div className="no-drag flex flex-wrap items-center gap-2">
       <Segmented label="Period" value={kind} onChange={setKind}
-        options={[['month', 'Month'], ['year', 'Year'], ['last30', '30 days'], ['last90', '90 days'], ['range', 'Custom']]} />
+        options={[['week', 'Week'], ['month', 'Month'], ['year', 'Year'], ['last30', '30 days'], ['last90', '90 days'], ['range', 'Custom']]} />
+      {kind === 'week' && stepper(period.label,
+        () => setPeriod(makePeriod('week', addDays(period.value, -7))),
+        () => setPeriod(makePeriod('week', addDays(period.value, 7))),
+        period.value < weekEnding(today()),
+        <input type="date" value={period.value} max={weekEnding(today())} aria-label="Pick a day in the week" className="absolute inset-0 cursor-pointer opacity-0"
+          onChange={(e) => isDayKey(e.target.value) && setPeriod(makePeriod('week', weekEnding(e.target.value)))} />)}
       {kind === 'month' && stepper(period.label,
         () => setPeriod(makePeriod('month', shiftMonth(period.value, -1))),
         () => setPeriod(makePeriod('month', shiftMonth(period.value, 1))),

@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
-import { AlertTriangle, CheckCircle2, Lock } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import setupSql from '../../supabase/bloom-back-office.sql?raw'
+import { AlertTriangle, CheckCircle2, Lock, Copy, Database } from 'lucide-react'
 import { useApp } from '../state/AppState.jsx'
 import { PageHeader } from '../components/Shell.jsx'
 import { Card, Pill } from '../components/ui.jsx'
@@ -9,7 +10,7 @@ import { da, num } from '../lib/format.js'
 const input = 'h-9 w-full rounded-lg border border-line bg-paper px-3 text-sm outline-none transition focus:border-plum focus:ring-4 focus:ring-plum/10'
 
 export default function Settings() {
-  const { ds, prefs, setPrefs, restricted, status } = useApp()
+  const { ds, prefs, setPrefs, restricted, status, setupNeeded } = useApp()
 
   // Products sold in the last 120 days with no cost from supplier purchases.
   const missing = useMemo(() => {
@@ -77,6 +78,30 @@ export default function Settings() {
           ) },
         ]} />
       </Card>
+
+      <BackOfficeSetup needed={setupNeeded} />
     </>
+  )
+}
+
+function BackOfficeSetup({ needed }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => { await navigator.clipboard.writeText(setupSql); setCopied(true); setTimeout(() => setCopied(false), 2500) }
+  return (
+    <section id="setup" className="card rise mt-4 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className={`grid h-10 w-10 place-items-center rounded-2xl ${needed ? 'bg-amber-soft text-amber' : 'bg-sage-soft text-sage'}`}><Database className="h-5 w-5" /></span>
+          <div>
+            <h2 className="font-display text-[17px] text-ink">Back office setup</h2>
+            <p className="mt-0.5 max-w-2xl text-[13px] text-muted">{needed
+              ? 'Not done yet. Expenses outside the till, staff & payroll, attendance and purchase orders need 6 new tables. Copy the SQL, open Supabase → SQL Editor → New query, paste it and press Run. It only adds tables; the till is not changed. Then press Refresh in Bloom.'
+              : 'Done: expenses, staff & payroll, attendance and purchase orders are ready. Running the SQL again is harmless.'}</p>
+          </div>
+        </div>
+        <button onClick={copy} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-plum px-3.5 text-sm font-medium text-white"><Copy className="h-4 w-4" />{copied ? 'Copied' : 'Copy the SQL'}</button>
+      </div>
+      {needed && <pre className="mt-4 max-h-64 overflow-auto rounded-xl bg-ink p-4 text-[11px] leading-relaxed text-white/85">{setupSql}</pre>}
+    </section>
   )
 }

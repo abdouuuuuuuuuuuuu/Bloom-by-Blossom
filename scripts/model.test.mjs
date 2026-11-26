@@ -135,3 +135,78 @@ test('timeline sums to the total', () => {
   assert.equal(tl.rows.at(-1).cumulative, 9000)
   assert.equal(tl.rows[0].revenue, 1000)
 })
+
+// ── Back office ─────────────────────────────────────────────
+import { buildBackOffice, payroll, accounts, payables } from '../src/model/backoffice.js'
+import { weekEnding } from '../src/model/period.js'
+
+test('the shop week runs Saturday to Friday', () => {
+  assert.equal(weekEnding('2026-11-27'), '2026-11-27') // Friday itself
+  assert.equal(weekEnding('2026-11-21'), '2026-11-27') // Saturday starts the week
+  assert.equal(weekEnding('2026-11-26'), '2026-11-27') // Thursday
+  assert.equal(weekEnding('2026-11-28'), '2026-12-04') // next Saturday
+  const w = makePeriod('week', '2026-11-27')
+  assert.equal(w.start, '2026-11-21')
+  assert.equal(w.end, '2026-11-27')
+  assert.equal(previousPeriod(w).end, '2026-11-20')
+})
+
+const officeRaw = {
+  ...raw,
+  suppliers: [{ supplier_id: 1, company_name: 'Flora', supplier_status: 'active' }, { supplier_id: 2, company_name: 'Old', supplier_status: 'inactive' }],
+  supplierPayments: [{ payment_id: 1, supplier_id: 1, amount: 15000, paid_at: '2026-11-05T10:00:00Z' }],
+  supplierBalances: [{ supplier_id: 1, total_purchased: 50000, total_paid: 15000, total_due: 35000, credit: 0 }],
+  bExpenses: [{ id: 1, spent_on: '2026-11-10', category: 'Rent', amount: 20000, payment_method: 'bank' }],
+  staff: [
+    { id: 1, full_name: 'Sara', monthly_salary: 30000, is_active: true, started_on: '2026-01-01' },
+    { id: 2, full_name: 'Gone', monthly_salary: 25000, is_active: false, ended_on: '2026-09-30' },
+  ],
+  staffPayments: [
+    { id: 1, staff_id: 1, kind: 'advance', for_month: '2026-11', amount: 5000, paid_on: '2026-11-12', from_register: false },
+    { id: 2, staff_id: 1, kind: 'bonus', for_month: '2026-11', amount: 2000, paid_on: '2026-11-30', from_register: false },
+    { id: 3, staff_id: 1, kind: 'deduction', for_month: '2026-11', amount: 1000, paid_on: '2026-11-30' },
+    { id: 4, staff_id: 1, kind: 'salary', for_month: '2026-11', amount: 10000, paid_on: '2026-11-20', from_register: true },
+  ],
+  attendance: [{ staff_id: 1, day: '2026-11-02', status: 'present' }, { staff_id: 1, day: '2026-11-03', status: 'half' }, { staff_id: 1, day: '2026-11-04', status: 'absent' }],
+  purchaseOrders: [{ id: 3, supplier_id: 1, status: 'sent', created_at: '2026-11-20T10:00:00Z' }],
+  poLines: [{ id: 1, po_id: 3, product_id: 1, quantity: 50, unit_cost: 250 }],
+}
+
+test('suppliers use the database balance and keep inactive ones', () => {
+  const ds = buildDataset(officeRaw)
+  const bo = buildBackOffice(officeRaw, ds)
+  const flora = bo.supplierById.get(1)
+  assert.equal(flora.due, 35000)
+  assert.equal(flora.payments.length, 1)
+  assert.equal(bo.supplierById.get(2).active, false)
+  assert.equal(payables(bo).total, 35000)
+  assert.equal(bo.purchaseOrders[0].total, 12500)
+  assert.equal(bo.purchaseOrders[0].number, 'PO-0003')
+})
+
+test('payroll: salary + bonus − deduction − advances − paid', () => {
+  const bo = buildBackOffice(officeRaw, buildDataset(officeRaw))
+  const sheet = payroll(bo, '2026-11')
+  assert.equal(sheet.rows.length, 1) // the person who left in September is not on November's sheet
+  const sara = sheet.rows[0]
+  assert.equal(sara.earned, 31000)
+  assert.equal(sara.handed, 15000)
+  assert.equal(sara.owed, 16000)
+  assert.equal(sara.attendance.worked, 1.5)
+  assert.equal(sara.attendance.absent, 1)
+  assert.equal(payroll(bo, '2026-09').rows.length, 2)
+})
+
+test('accounts never count till-paid staff twice', () => {
+  const ds = buildDataset(officeRaw)
+  const bo = buildBackOffice(officeRaw, ds)
+  const nov = makePeriod('month', '2026-11')
+  const acc = accounts(ds, bo, select(ds, nov), nov)
+  assert.equal(acc.officeCosts, 20000)
+  assert.equal(acc.staffCosts, 7000)      // advance + bonus; the salary came from the till, the deduction is not cash
+  assert.equal(acc.staffFromTill, 10000)
+  assert.equal(acc.tillCosts, 1000)       // refunds are not expenses
+  assert.equal(acc.cash.suppliers, 15000)
+  assert.equal(acc.cash.net, acc.collected - 15000 - 1000 - 20000 - 7000)
+  assert.ok(acc.net < acc.gross)
+})
