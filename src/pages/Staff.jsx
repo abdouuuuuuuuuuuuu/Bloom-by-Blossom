@@ -21,7 +21,16 @@ export default function Staff() {
   const dlg = useDialog()
   const sheet = useMemo(() => payroll(bo, month), [bo, month])
 
-  if (setupNeeded) return <><PageHeader title="Staff & payroll" subtitle="Your team, what they earn, what they were paid, who came in" /><SetupNotice what="Staff & payroll" /></>
+  const notOnPayroll = bo.team.filter((t) => !t.onPayroll)
+  if (setupNeeded) {
+    return (
+      <>
+        <PageHeader title="Staff & payroll" subtitle="Your team, what they earn, what they were paid, who came in" />
+        <div className="mb-4"><SetupNotice what="Payroll and attendance" /></div>
+        <TeamFromBlossom team={bo.team} />
+      </>
+    )
+  }
   const payHidden = restricted.includes('staffPayments')
 
   return (
@@ -46,6 +55,13 @@ export default function Staff() {
         <Stat icon={HandCoins} tone="sage" label="Already handed over" value={payHidden ? '—' : da(sheet.handed)} info="Advances and salary payments recorded for this month." />
         <Stat icon={HandCoins} tone="rose" label="Still to pay" value={payHidden ? '—' : da(sheet.owed)}>{sheet.overpaid ? `${da(sheet.overpaid)} paid ahead` : ''}</Stat>
       </div>
+
+      {notOnPayroll.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-plum/20 bg-plum-soft/60 p-3 text-sm">
+          <span className="text-ink"><b>{notOnPayroll.length}</b> {notOnPayroll.length === 1 ? 'person' : 'people'} from your Blossom team {notOnPayroll.length === 1 ? 'is' : 'are'} not on the payroll yet: {notOnPayroll.map((t) => t.name).join(', ')}</span>
+          <Button icon={Plus} onClick={() => dlg.open('import', {})}>Add them</Button>
+        </div>
+      )}
 
       <div className="mb-4"><Segmented label="View" value={tab} onChange={setTab} options={[['pay', 'Pay sheet'], ['attendance', 'Attendance'], ['team', 'Team'], ['payments', 'Payments']]} /></div>
 
@@ -101,6 +117,7 @@ export default function Staff() {
       )}
 
       {dlg.is('person') && <PersonDialog data={dlg.state.data} onClose={dlg.close} />}
+      {dlg.is('import') && <ImportDialog people={notOnPayroll} onClose={dlg.close} />}
       {dlg.is('pay') && <PayDialog data={dlg.state.data} onClose={dlg.close} />}
       {dlg.is('voidPay') && <Confirm title="Cancel this payment?" askReason="Why?" confirmLabel="Cancel payment" onClose={dlg.close}
         onConfirm={async (reason) => { await A.voidStaffPayment(dlg.state.data.id, reason); await saved('Payment cancelled') }}>
@@ -179,6 +196,48 @@ function Attendance({ month }) {
         {Object.entries(ATTENDANCE).map(([k, v]) => <span key={k} className="inline-flex items-center gap-1"><Pill tone={v.tone}>{v.short}</Pill>{v.label}</span>)}
       </div>
     </Card>
+  )
+}
+
+const ROLE_LABEL = { owner: 'Owner', manager: 'Manager', florist: 'Florist', cashier: 'Cashier', delivery: 'Courier', courier: 'Courier' }
+const roleLabel = (r) => ROLE_LABEL[r] || (r ? r[0].toUpperCase() + r.slice(1) : '')
+
+/** The team as Blossom knows it (logins), shown even before the payroll is set up. */
+function TeamFromBlossom({ team }) {
+  return (
+    <Card title="Your team in Blossom" hint="Everyone with an active Blossom login. Run the setup above to add salaries, advances and attendance.">
+      <DataTable rows={team} exportName="bloom-blossom-team" empty="No active Blossom logins found." columns={[
+        { key: 'name', label: 'Name', render: (t) => <span className="font-medium">{t.name}</span> },
+        { key: 'username', label: 'Username' },
+        { key: 'role', label: 'Role', render: (t) => <Pill tone="plum">{roleLabel(t.role)}</Pill>, csv: (t) => roleLabel(t.role) },
+      ]} />
+    </Card>
+  )
+}
+
+/** Put Blossom logins on the payroll in one go, with their salary. */
+function ImportDialog({ people, onClose }) {
+  const { saved } = useApp()
+  const { profile } = useAuth()
+  const [rows, setRows] = useState(() => people.map((p) => ({ ...p, pick: p.role !== 'owner', salary: '' })))
+  const set = (id, patch) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  const chosen = rows.filter((r) => r.pick)
+  return (
+    <Dialog wide title="Add your Blossom team to the payroll" subtitle="Tick who you pay. The salary can be filled in later." submitLabel={`Add ${chosen.length}`} disabled={!chosen.length} onClose={onClose}
+      onSubmit={async () => {
+        for (const r of chosen) await A.saveStaff({ full_name: r.name, job_title: roleLabel(r.role), profile_id: r.id, monthly_salary: r.salary || 0, started_on: null })
+        onClose(); await saved(`${chosen.length} added to the payroll`)
+      }}>
+      <ul className="divide-y divide-line/60">
+        {rows.map((r) => (
+          <li key={r.id} className="flex items-center gap-3 py-2">
+            <input type="checkbox" checked={r.pick} onChange={(e) => set(r.id, { pick: e.target.checked })} aria-label={`Add ${r.name}`} className="h-4 w-4 accent-[#462c7d]" />
+            <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-ink">{r.name}</span><span className="text-xs text-muted">{roleLabel(r.role)}{r.username ? ` · ${r.username}` : ''}</span></span>
+            {profile?.role === 'owner' && <span className="w-40"><Money aria-label={`Monthly salary of ${r.name}`} value={r.salary} onChange={(v) => set(r.id, { salary: v })} placeholder="Monthly salary" disabled={!r.pick} /></span>}
+          </li>
+        ))}
+      </ul>
+    </Dialog>
   )
 }
 

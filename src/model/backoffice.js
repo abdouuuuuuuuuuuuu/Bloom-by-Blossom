@@ -138,7 +138,13 @@ export function buildBackOffice(raw, ds) {
     }
   }).sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name))
 
-  return { suppliers, supplierById, payments, catalogue, productById, purchaseOrders, backExpenses, staff, staffPayments, attendance }
+  // Blossom logins that are not on Bloom's payroll yet (to offer adding them).
+  const linked = new Set(staff.map((s) => s.profileId).filter(Boolean))
+  const team = (raw.profiles || []).filter((p) => p.is_active !== false).map((p) => ({
+    id: p.id, key: p.id, name: p.full_name || p.username || 'Team member', username: p.username || '', role: p.role || '', onPayroll: linked.has(p.id),
+  })).sort((a, b) => a.name.localeCompare(b.name))
+
+  return { suppliers, supplierById, payments, catalogue, productById, purchaseOrders, backExpenses, staff, staffPayments, attendance, team }
 }
 
 /** Was this person on the payroll during the month? */

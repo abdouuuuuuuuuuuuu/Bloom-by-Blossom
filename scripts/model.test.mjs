@@ -210,3 +210,9 @@ test('accounts never count till-paid staff twice', () => {
   assert.equal(acc.cash.net, acc.collected - 15000 - 1000 - 20000 - 7000)
   assert.ok(acc.net < acc.gross)
 })
+
+test('Blossom logins not on the payroll are offered', () => {
+  const r = { ...officeRaw, profiles: [{ id: 'u1', full_name: 'Owner', role: 'owner', is_active: true }, { id: 'u2', full_name: 'Sara', role: 'florist', is_active: true }, { id: 'u3', full_name: 'Old', role: 'cashier', is_active: false }], staff: [{ id: 1, full_name: 'Owner', profile_id: 'u1', monthly_salary: 0, is_active: true }] }
+  const bo = buildBackOffice(r, buildDataset(r))
+  assert.deepEqual(bo.team.map((t) => [t.name, t.onPayroll]), [['Owner', true], ['Sara', false]])
+})
